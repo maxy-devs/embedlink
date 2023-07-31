@@ -1,0 +1,13 @@
+__pycache__/
+cogs/__pycache__/
+database/
+.env
+db.bak
+db.dir
+db.dat
+image/
+venv/
+.idea/
+.git/
+backup.json
+db.json
