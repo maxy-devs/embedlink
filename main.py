@@ -13,10 +13,10 @@ bot = commands.InteractionBot(intents=discord.Intents.all())
 
 if "analytics" not in db:
   db["analytics"] = {}
-if "day" not in db["analytics"]:
   db["analytics"]["day"] = {}
-if "daytime" not in db["analytics"]:
   db["analytics"]["daytime"] = int(time.time()) - 86400
+if "settings" not in db:
+  db["settings"] = {}
 
 @bot.event
 async def on_ready():
@@ -45,7 +45,6 @@ async def check_timeout():
       db["analytics"]["daytime"] = int(time.time()) + 86400
   except Exception as e:
     print(f"{e.__class__.__name__}: {e}")
-
 
 check_timeout.start()
 bot.run(os.environ["DISCORD_TOKEN"])

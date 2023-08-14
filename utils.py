@@ -25,7 +25,7 @@ class Database(dict):
       super().__init__()
       self.file = JsonFile(self.__fullpath)
       self.backup = JsonFile(f"{directory}backup.json")
-      self.dict = self.file.data
+      self.dict = self.file
       atexit.register(self.__del)
 
   def __getitem__(self, key):
@@ -41,8 +41,8 @@ class Database(dict):
       return item in self.dict
 
   def __del(self):
-      self.file.data = self.dict
-      self.backup.data = self.dict
+      self.file = self.dict
+      self.backup = self.dict
       self.file.save()
       self.backup.save()
 
@@ -81,93 +81,116 @@ def Embed(
     )
 
 class JsonFile(object):
-  __data: Dict[Any, Any]
+  _var: Dict[Any, Any]
   def __init__(self, filename):
-      self.filename = filename
-      self.__data = {}
-      self.load()
+    self.filename = filename
+    self._var = {}
+    self.load()
 
-  def __enter__(self):
-      return self.__data
+  def __getitem__(self, item):
+    return self._var[item]
 
-  def __exit__(self, exc_type, exc_val, exc_tb):
-      self.save()
+  def __setitem__(self, key, value):
+    self._var[key] = value
 
   def __contains__(self, item):
-      return item in self.__data
+    return item in self._var
 
   def load(self):
-      try:
-          with open(self.filename, 'r') as f:
-              self.__data = json.load(f)
-      except (FileNotFoundError, json.decoder.JSONDecodeError):
-          with open(self.filename, 'w') as f:
-              json.dump({}, f)
+    try:
+        with open(self.filename, 'r') as f:
+            self._var = json.load(f)
+    except (FileNotFoundError, json.decoder.JSONDecodeError):
+        with open(self.filename, 'w') as f:
+            json.dump({}, f)
 
   def save(self):
-      with open(self.filename, "w") as f:
-          json.dump(self.__data, f, indent = 4)
+    with open(self.filename, "w") as f:
+      json.dump(self._var, f, indent = 4)
 
-  @property
-  def data(self):
-      return self.__data
-
-  @data.setter
-  def data(self, value):
-      self.__data = value
-
-class RedisDBLive(dict):
+class RDBLive(object):
   def __init__(self, name: str = "main", key: str = None, *, host: str, port: int, password: str, client_name: str, charset: str = "utf-8", decode_responses: bool = True, dont_save: bool = False):
     super().__init__()
     self._redis = rd.Redis(host = host, port = port, password = password, client_name = client_name, charset = charset, decode_responses = decode_responses, health_check_interval = 1000)
     atexit.register(self.__del)
     self._backup = JsonFile("backup.json")
+    self._eventloop = asyncio.new_event_loop()
     self.__ds = dont_save
-    self._name = name
+    self.__break = False
     self._var = {}
+    self._oldvar = {}
+    self._name = name
     self._key = key if key else name
     self.__load()
 
   def __getitem__(self, item):
-    # if self._var == {}:
-    #   self._var = json.loads(self._redis.hget(self._name, self._key))
+    print(f"getitem {item} {self._var == self._oldvar}")
+    if not self.__ds:
+      if self._var != self._oldvar:
+        self._redis.hset(self._name, self._key, json.dumps(self._var))
+        self._oldvar = json.loads(self._redis.hget(self._name, self._key))
     return self._var[item]
 
   def __setitem__(self, key, value):
+    print(f"setitem {key} {value} {self._var == self._oldvar}")
     self._var[key] = value
     if not self.__ds:
-      self._redis.hset(self._name, self._key, json.dumps(self._var))
+      if self._var != self._oldvar:
+        self._redis.hset(self._name, self._key, json.dumps(self._var))
+        self._oldvar = json.loads(self._redis.hget(self._name, self._key))
 
-  def __contains__(self, item):
-    # if self._var == {}:
-    #   self._var = json.loads(self._redis.hget(self._name, self._key))
-    return item in self._var
+  # def __getattr__(self, item):
+  #   if item not in self._var:
+  #     return object.__getattribute__(self, item)
+  #   else:
+  #     return self._var[item]
+  #
+  # def __setattr__(self, key, value):
+  #   if key in dir(self):
+  #     raise Exception("You cannot change internal attributes")
+  #   if key.startswith("_"):
+  #     object.__setattr__(self, key, value)
+  #   else:
+  #     self._var[key] = value
 
   def __repr__(self):
     return self._var.__repr__()
-      
+
+  def __contains__(self, item):
+    print(f"contains {item} {self._var == self._oldvar}")
+    if not self.__ds:
+      if self._var != self._oldvar:
+        self._redis.hset(self._name, self._key, json.dumps(self._var))
+        self._oldvar = json.loads(self._redis.hget(self._name, self._key))
+    return item in self._var
+
+  def __load(self):
+    print("load")
+    if not self._redis.hexists(self._name, self._key):
+      self._redis.hset(self._name, self._key, "{}")
+    if self._var == {}:
+      self._backup.load()
+      if "crashed" in self._backup:
+        if self._backup["crashed"]:
+          self._backup["crashed"] = False
+          self._backup.save()
+          self._var = self._backup
+        else:
+          self._var = json.loads(self._redis.hget(self._name, self._key))
+      else:
+        self._var = json.loads(self._redis.hget(self._name, self._key))
+
   def __del(self):
+    print("del")
     if not self.__ds:
       try:
         self._redis.hset(self._name, self._key, json.dumps(self._var))
       except Exception as e:
         print(e)
         self._var["crashed"] = True
-        self._backup.data = self._var
+        self._backup = self._var
         self._backup.save()
     self._redis.close()
-
-  def __load(self):
-    if self._var == {}:
-      if "crashed" in self._backup.data:
-        if self._backup.data["crashed"]:
-          del self._backup.data["crashed"]
-          self._var = self._backup.data
-        else:
-          self._var = json.loads(self._redis.hget(self._name, self._key))
-      else:
-        self._var = json.loads(self._redis.hget(self._name, self._key))
-
 
 class RedisDB(dict):
   def __init__(self, name: str = "main", key: str = None, *, host: str, port: int, password: str, client_name: str, charset: str = "utf-8", decode_responses: bool = True, dont_save: bool = False):
@@ -229,14 +252,14 @@ async def Webhook(ctx, channel = None):
   if ctx != None:
     if channel != None:
       for webhook in (await channel.webhooks()):
-        if webhook.user.id == ctx.bot.user.id and webhook.name == "PythonBot Webhook":
+        if webhook.user.id == ctx.bot.user.id and webhook.name == "Link Embedder Webhook":
           return webhook
-      return (await channel.create_webhook(name="PythonBot Webhook"))
+      return (await channel.create_webhook(name="Link Embedder Webhook"))
 
     for webhook in (await ctx.channel.webhooks()):
-      if webhook.user.id == ctx.bot.user.id and webhook.name == "PythonBot Webhook":
+      if webhook.user.id == ctx.bot.user.id and webhook.name == "Link Embedder Webhook":
         return webhook
-    return (await ctx.channel.create_webhook(name="PythonBot Webhook"))
+    return (await ctx.channel.create_webhook(name="Link Embedder Webhook"))
 
 def dividers(array: list, divider: str = " | "):
   ft = []
@@ -245,12 +268,16 @@ def dividers(array: list, divider: str = " | "):
       ft.append(i)
   return divider.join(ft) if divider else ""
 
+datasaver = {}
+defaultset = {"msg_ignore_unknown": False, "msg_ignore_all": False, "no_embed_on_mention": False}
+
 dontsave = True
 if os.environ["TEST"] != "y":
   dontsave = False
 
 db = None
 try:
-  db = RedisDBLive("embedlink", "embedlink", host = os.environ["REDISHOST"], port = os.environ["REDISPORT"], password = os.environ["REDISPASSWORD"], client_name = None, dont_save = dontsave)
-except (Exception, rd.exceptions.TimeoutError):
+  db = RDBLive("embedlink", "embedlink", host = os.environ["REDISHOST"], port = os.environ["REDISPORT"], password = os.environ["REDISPASSWORD"], client_name = None, dont_save = dontsave)
+except (Exception, rd.exceptions.TimeoutError) as e:
+  print(e)
   db = Database()
