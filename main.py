@@ -3,13 +3,15 @@ import disnake as discord
 import random
 import sys
 import os
+import topgg
 import datetime, time
-from utils import db
+from utils import db, anonassign
 from disnake.ext import commands, tasks
 from dotenv import load_dotenv
 load_dotenv()
 
 bot = commands.InteractionBot(intents=discord.Intents.all())
+bot.topgg = topgg.DBLClient(bot, os.environ["TOPGG"])
 
 if "analytics" not in db:
   db["analytics"] = {}
@@ -37,6 +39,21 @@ for filename in os.listdir('./cogs'):
     except Exception as e:
       print(f"{e.__class__.__name__}: {e}")
 
+@tasks.loop(minutes = 30)
+async def top_gg_updstats():
+  try:
+    await bot.topgg.post_guild_count()
+    print(f"Successfully updated guild count: {len(bot.guilds)}")
+  except Exception as e:
+    print(f"{e.__class__.__name__}: {e}")
+
+@tasks.loop(minutes = 10)
+async def reset_anon():
+  try:
+    anonassign = {}
+  except Exception as e:
+    print(f"{e.__class__.__name__}: {e}")
+
 @tasks.loop(hours = 1)
 async def check_timeout():
   try:
@@ -46,5 +63,8 @@ async def check_timeout():
   except Exception as e:
     print(f"{e.__class__.__name__}: {e}")
 
+if os.environ["TEST"] != "y":
+  top_gg_updstats.start()
 check_timeout.start()
+reset_anon.start()
 bot.run(os.environ["DISCORD_TOKEN"])

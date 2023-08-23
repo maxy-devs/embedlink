@@ -192,62 +192,6 @@ class RDBLive(object):
         self._backup.save()
     self._redis.close()
 
-class RedisDB(dict):
-  def __init__(self, name: str = "main", key: str = None, *, host: str, port: int, password: str, client_name: str, charset: str = "utf-8", decode_responses: bool = True, dont_save: bool = False):
-    self._redis = rd.Redis(host = host, port = port, password = password, client_name = client_name, charset = charset, decode_responses = decode_responses, health_check_interval = 1000)
-    super().__init__()
-    self._backup = JsonFile("backup.json")
-    self._name = name
-    self.__ds = dont_save
-    self._key = key if key else name
-    self._var = self._load(True)
-    atexit.register(self.__del)
-
-  def __getitem__(self, key):
-      return self._var[key]
-
-  def __setitem__(self, key, value):
-      self._var[key] = value
-      if not self.__ds:
-        self._save()
-
-  def __repr__(self):
-      return self._var.__repr__()
-
-  def __enter__(self) -> dict:
-      return self._load()
-
-  def __exit__(self, exc_type, exc_value, exc_traceback):
-      if not self.__ds:
-        self._save()
-
-  def __contains__(self, item):
-      return item in self._var
-
-  def _load(self, backup = False):
-      if self._key not in self._redis.keys():
-          self._redis.hset(self._name, self._name, "{}")
-      self._var = json.loads(self._redis.hget(self._name, self._key))
-      if backup:
-          if self._var != self._backup.data and self._backup.data:
-              self._var = self._backup.data
-              self._backup.data = {}
-              self._backup.save()
-      return self._var
-
-  def _save(self):
-      try:
-          if self._var != json.loads(self._redis.hget(self._name, self._key)):
-              self._redis.hset(self._name, self._key, json.dumps(self._var))
-      except Exception:
-          self._backup.data = self._var
-          self._backup.save()
-
-  def __del(self):
-      if not self.__ds:
-          self._save()
-      self._redis.close()
-
 async def Webhook(ctx, channel = None):
   if ctx != None:
     if channel != None:
@@ -269,7 +213,9 @@ def dividers(array: list, divider: str = " | "):
   return divider.join(ft) if divider else ""
 
 datasaver = {}
-defaultset = {"msg_ignore_unknown": False, "msg_ignore_all": False, "no_embed_on_mention": False}
+defaultset = {"msg_ignore_unknown": False, "msg_ignore_all": False, "no_embed_on_mention": False, "anon": False}
+anonassign = {}
+
 
 dontsave = True
 if os.environ["TEST"] != "y":

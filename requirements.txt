@@ -1,4 +1,5 @@
 disnake>=2.8.1
 python-dotenv>=1.0.0
 asyncio>=3.4.3
+topggpy>=1.4.0
 redis>=4.5.5

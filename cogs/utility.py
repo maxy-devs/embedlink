@@ -5,19 +5,24 @@ import random
 import os, sys
 import datetime, time
 from disnake.ext import commands
-from utils import db, datasaver, defaultset
+from utils import db, datasaver, defaultset, dividers
 
-botver = "4.6.0"
+botver = "4.7.1"
 pyver = ".".join(str(i) for i in list(sys.version_info)[0:3])
 dnver = ".".join(str(i) for i in list(discord.version_info)[0:3])
 
 settingkeys = {"msg_ignore_unknown": ("Ignore unknown message links", "Self explanatory"),
                "no_embed_on_mention": ("No embed on mention", "No 'Hello!' embed when you mention the bot"),
-               "msg_ignore_all": ("Ignore messages", "Ignores all of your links and messages")}
+               "msg_ignore_all": ("Ignore messages", "Ignores all of your links and messages"),
+               "anon": ("Anonymous", "Your username and pfp wont be displayed in embedded messages")}
 
 async def suggest_setting(inter, input):
   if str(inter.author.id) not in db["settings"]:
-    db["notes"][str(inter.author.id)] = defaultset
+    db["settings"][str(inter.author.id)] = defaultset.copy()
+  else:
+    for i in defaultset.keys():
+      if i not in db["settings"][str(inter.author.id)]:
+        db["settings"][str(inter.author.id)][i] = False
   return [setting for setting in list(db['settings'][str(inter.author.id)].keys()) if input.lower() in setting.lower()][0:24]
 
 
@@ -72,7 +77,11 @@ class Utility(commands.Cog):
   @commands.slash_command()
   async def settings(self, inter):
     if str(inter.author.id) not in db["settings"]:
-      db["settings"][str(inter.author.id)] = defaultset
+      db["settings"][str(inter.author.id)] = defaultset.copy()
+    else:
+      for i in defaultset.keys():
+        if i not in db["settings"][str(inter.author.id)]:
+          db["settings"][str(inter.author.id)][i] = False
 
   @settings.sub_command()
   async def info(self, inter):
@@ -156,22 +165,89 @@ class Utility(commands.Cog):
     await inter.send(embed = e, view = view)
     db["analytics"]["day"]["/bot invite"] += 1
     db["analytics"]["day"]["total"] += 1
+
+  @commands.slash_command()
+  async def quote(self, inter, text: str = None, *, message_id: str, channel: discord.TextChannel = None):
+    '''
+    Embed a message using message id and channel!
+
+    Parameters
+    ----------
+    text: Text you want to add
+    message_id: Message id
+    channel: Mention channel
+    '''
+    if "/quote" not in db["analytics"]["day"]:
+      db["analytics"]["day"]["/quote"] = 0
+    if channel is None:
+      channel = inter.channel
+    getmsg = await channel.fetch_message(int(message_id))
+    if not getmsg:
+      e = discord.Embed(title = "Error", description = "Message not found", color = random.randint(0, 16777215))
+      db["analytics"]["day"]["errored"] += 1
+      await inter.send(embed = e, ephemeral = True)
+      return
+    await inter.response.defer()
+    embeds = []
+
+    e = discord.Embed(description = getmsg.content + (("\n\n" + " | ".join(f"{reaction.emoji}` {reaction.count} `" for reaction in getmsg.reactions)) if getmsg.reactions else ''), color = random.randint(0, 16777215), timestamp = getmsg.created_at)
+    if getmsg.attachments:
+      e.set_image(getmsg.attachments[0])
+    e.set_author(url = getmsg.jump_url, name = f"{str(getmsg.author.name)} | Click to jump", icon_url = getmsg.author.avatar if getmsg.author.avatar else f"https://cdn.discordapp.com/embed/avatars/{random.choice(list(range(0, 5)))}.png")
+    e.set_footer(icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png", text = f'{dividers(["Link Embedder", f"#{getmsg.channel.name}"])}')
+    embeds.append(e)
+    if getmsg.embeds:
+      for embed in getmsg.embeds:
+        #print(embed.to_dict())
+        if embed.type == "image" and not embeds[embedi].image:
+          embeds[embedi].set_image(embed.thumbnail.url)
+          continue
+        if embed.video:
+          continue
+        if embed.thumbnail and embed.url:
+          embed.set_image(embed.thumbnail.url + (".gif" if not embed.thumbnail.url.endswith((".gif", ".png", ".jpg", ".jpeg")) else ""))
+          embed.set_thumbnail(url = None)
+        embeds.append(embed)
+
+    if getmsg.reference:
+      getmsgref = getmsg.reference.resolved
+      if hasattr(getmsgref, "author"):
+        e = discord.Embed(description = getmsgref.content, color = random.randint(0, 16777215), timestamp = getmsgref.created_at)
+        if getmsgref.attachments:
+          e.set_image(getmsgref.attachments[0])
+        e.set_author(url = getmsgref.jump_url, name = f"{str(getmsgref.author.name)} [Replying] | Click to jump", icon_url = getmsgref.author.avatar if getmsgref.author.avatar else f"https://cdn.discordapp.com/embed/avatars/{random.choice(list(range(0, 5)))}.png")
+        e.set_footer(icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png", text = f'{dividers(["Link Embedder", f"#{getmsg.channel.name}"])}')
+        embeds.append(e)
+    if "message embeds" not in db["analytics"]["day"]:
+      db["analytics"]["day"]["message embeds"] = 0
+    db["analytics"]["day"]["message embeds"] += 1
+
+    if embeds:
+      await inter.send(content = text, embeds = embeds, allowed_mentions = discord.AllowedMentions.none())
+      msgsave = await inter.original_response()
+      if str(inter.author.id) not in datasaver:
+        datasaver[str(inter.author.id)] = set()
+      datasaver[str(inter.author.id)].add(str(msgsave.id))
+      db["analytics"]["day"]["total"] += 1
+      return
+
   @commands.slash_command()
   async def link(self, inter):
     pass
 
   @link.sub_command()
-  async def msgbyid(self, inter, id: str):
+  async def msgbyid(self, inter, id: str, channel: discord.TextChannel):
     '''
-    Get link to a message by ID in current channel
+    Get link to a message by ID in mentioned channel
 
     Parameters
     ----------
     id: Message ID
+    channel: Channel
     '''
     if "/link msgbyid" not in db["analytics"]["day"]:
       db["analytics"]["day"]["/link msgbyid"] = 0
-    fetchmsg = await inter.channel.fetch_message(int(id))
+    fetchmsg = await channel.fetch_message(int(id))
     if not fetchmsg:
       e = discord.Embed(title = "Error", description = "Message not found", color = random.randint(0, 16777215))
       db["analytics"]["day"]["errored"] += 1

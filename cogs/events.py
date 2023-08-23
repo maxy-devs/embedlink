@@ -6,7 +6,7 @@ import os
 import re
 import datetime, time
 from disnake.ext import commands
-from utils import db, dividers, datasaver, defaultset
+from utils import db, dividers, datasaver, defaultset, anonassign
 import utils
 
 icons = {"TextChannel": "#️⃣",
@@ -25,7 +25,11 @@ class Events(commands.Cog):
       return
 
     if str(msg.author.id) not in db["settings"]:
-      db["settings"][str(msg.author.id)] = defaultset
+      db["settings"][str(msg.author.id)] = defaultset.copy()
+    else:
+      for i in defaultset.keys():
+        if i not in db["settings"][str(msg.author.id)]:
+          db["settings"][str(msg.author.id)][i] = False
 
     if db["settings"][str(msg.author.id)]["msg_ignore_all"]:
       return
@@ -44,8 +48,11 @@ class Events(commands.Cog):
       embedcount = 0
       embedi = -1
       getmsg = None
+      oneanon = None
       for n, i in enumerate(links):
         ids = re.findall("[0-9]{10,}", i.strip())
+        anon = False
+        refanon = False
         if not links[n].startswith("http"):
           continue
 
@@ -65,14 +72,33 @@ class Events(commands.Cog):
               db["analytics"]["day"]["errored"] += 1
             continue
 
+          if str(getmsg.author.id) not in db["settings"]:
+            db["settings"][str(getmsg.author.id)] = defaultset.copy()
+          else:
+            for key in defaultset.keys():
+              if key not in db["settings"][str(getmsg.author.id)]:
+                db["settings"][str(getmsg.author.id)][key] = False
+
+          if db["settings"][str(getmsg.author.id)]["anon"]:
+            if str(getmsg.author.id) not in anonassign:
+              while True:
+                randomize = str(random.randint(1, len(self.bot.users)))
+                if randomize in anonassign.values():
+                  continue
+                anonassign[str(getmsg.author.id)] = randomize
+                break
+            anon = True
+            if not oneanon:
+              oneanon = True
+
           embedcount += 1
           embedi += 1
           links[n] = f"[Embed #{embedcount}]"
           e = discord.Embed(description = getmsg.content + (("\n\n" + " | ".join(f"{reaction.emoji}` {reaction.count} `" for reaction in getmsg.reactions)) if getmsg.reactions else ''), color = random.randint(0, 16777215), timestamp = getmsg.created_at)
           if getmsg.attachments:
             e.set_image(getmsg.attachments[0])
-          e.set_author(url = getmsg.jump_url, name = f"{str(getmsg.author.name)} | Click to jump" + f"{' (ptb)' if 'ptb' in i else ''}{(' (canary)' if 'canary' in i else '')}{(' (discordapp)' if 'discordapp' in i else '')}", icon_url = getmsg.author.avatar if getmsg.author.avatar else f"https://cdn.discordapp.com/embed/avatars/{random.choice(list(range(0, 5)))}.png")
-          e.set_footer(icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png", text = f'{dividers(["Link Embedder", f"#{getmsg.channel.name}", getmsg.guild.name if getmsg.guild != msg.guild else ""])}')
+          e.set_author(url = getmsg.jump_url if not anon else None, name = (f"{str(getmsg.author.name)}" if not anon else f"User #{anonassign[str(getmsg.author.id)]}") + ((" | Click to jump" + f"{' (ptb)' if 'ptb' in i else ''}{(' (canary)' if 'canary' in i else '')}{(' (discordapp)' if 'discordapp' in i else '')}") if not anon else ""), icon_url = getmsg.author.avatar if getmsg.author.avatar and not anon else f"https://cdn.discordapp.com/embed/avatars/{random.choice(list(range(0, 5)))}.png")
+          e.set_footer(icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png", text = f'{dividers(["Link Embedder", f"#{getmsg.channel.name}" if not anon else None, getmsg.guild.name if getmsg.guild != msg.guild and not anon else ""])}')
           embeds.append(e)
           if getmsg.embeds:
             embedcount += len(getmsg.embeds)
@@ -92,12 +118,26 @@ class Events(commands.Cog):
           if getmsg.reference:
             getmsgref = getmsg.reference.resolved
             if hasattr(getmsgref, "author"):
-              e = discord.Embed(description = getmsgref.content, color = random.randint(0, 16777215), timestamp = getmsgref.created_at)
+              if db["settings"][str(getmsgref.author.id)]["anon"]:
+                if str(getmsgref.author.id) not in anonassign:
+                  while True:
+                    randomize = str(random.randint(1, len(self.bot.users)))
+                    if randomize in anonassign.values():
+                      continue
+                    anonassign[str(getmsgref.author.id)] = randomize
+                    break
+                refanon = True
+                if not oneanon:
+                  oneanon = True
+              if refanon:
+                embeds[embedi].set_author(name = (f"{str(getmsg.author.name)}" if not anon else f"User #{anonassign[str(getmsg.author.id)]}"), icon_url = getmsg.author.avatar if getmsg.author.avatar and not anon else f"https://cdn.discordapp.com/embed/avatars/{random.choice(list(range(0, 5)))}.png")
+                embeds[embedi].set_footer(icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png", text = "Link Embedder")
+              ref = discord.Embed(description = getmsgref.content, color = random.randint(0, 16777215), timestamp = getmsgref.created_at)
               if getmsgref.attachments:
-                e.set_image(getmsgref.attachments[0])
-              e.set_author(url = getmsgref.jump_url, name = f"{str(getmsgref.author.name)} [Replying] | Click to jump" + f"{' (ptb)' if 'ptb' in i else ''}{(' (canary)' if 'canary' in i else '')}{(' (discordapp)' if 'discordapp' in i else '')}", icon_url = getmsgref.author.avatar if getmsgref.author.avatar else f"https://cdn.discordapp.com/embed/avatars/{random.choice(list(range(0, 5)))}.png")
-              e.set_footer(icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png", text = f'{dividers(["Link Embedder", f"#{getmsg.channel.name}", getmsg.guild.name if getmsg.guild != msg.guild else ""])}')
-              embeds.append(e)
+                ref.set_image(getmsgref.attachments[0])
+              ref.set_author(url = getmsgref.jump_url if not refanon else None, name = (f"{str(getmsgref.author.name)}" if not refanon else f"User #{anonassign[str(getmsgref.author.id)]}") + ((" | Click to jump" + f"{' (ptb)' if 'ptb' in i else ''}{(' (canary)' if 'canary' in i else '')}{(' (discordapp)' if 'discordapp' in i else '')}") if not refanon and not anon else ""), icon_url = getmsgref.author.avatar if getmsgref.author.avatar and not refanon else f"https://cdn.discordapp.com/embed/avatars/{random.choice(list(range(0, 5)))}.png")
+              ref.set_footer(icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png", text = f'{dividers(["Link Embedder", f"#{getmsg.channel.name}" if not anon and not refanon else None, getmsg.guild.name if getmsg.guild != msg.guild and not anon and not refanon else ""])}')
+              embeds.append(ref)
               embedcount += 1
           if "message embeds" not in db["analytics"]["day"]:
             db["analytics"]["day"]["message embeds"] = 0
@@ -115,8 +155,6 @@ class Events(commands.Cog):
             continue
           embedcount += 1
           links[n] = f"[Embed #{embedcount}]"
-          #print(dir(getchnl))
-          #print(getchnl.__class__.__name__)
           e = discord.Embed(url = getchnl.jump_url, title = f"Channel Embed (Click to jump)", description = (f"# ▼ {getchnl.category}\n" if getchnl.category else "") + f"##{'#' if getchnl.__class__.__name__ == 'Thread' and getchnl.guild == msg.guild else ''} [`{(getchnl.guild.name + ' > ') if getchnl.guild != msg.guild else ''}" + ((f"{(icons[getchnl.parent.__class__.__name__] if not (getchnl.parent.is_news() if hasattr(getchnl.parent, 'is_news') else False) else '📢') if not (getchnl.parent.is_nsfw() if hasattr(getchnl.parent, 'is_nsfw') else False) else '🔞'}{getchnl.parent.name}`]({getchnl.parent.jump_url})" + '\n## [`╰━ ') if getchnl.__class__.__name__ == 'Thread' and getchnl.guild == msg.guild else '') + f"{(icons[getchnl.__class__.__name__] if not (getchnl.is_news() if hasattr(getchnl, 'is_news') else False) else '📢') if not (getchnl.is_nsfw() if hasattr(getchnl, 'is_nsfw') else False) else '🔞'}{getchnl.name}`]({getchnl.jump_url})" + ((f"\n> " + getchnl.topic.replace("\n", "\n> ")) if hasattr(getchnl, "topic") and getchnl.topic else "") + ((f" ({len(getchnl.members)})\nCurrent members in the voice chat:\n> " + "\n> ".join(f"{member.name}" for member in getchnl.members) if getchnl.members else '\nCurrently empty') if getchnl.__class__.__name__ in ["VoiceChannel", "StageChannel"] else ''), color = random.randint(0, 16777215), timestamp = getchnl.created_at)
           e.set_footer(text = dividers([f"ID: {getchnl.id}", "Link Embedder"]))
           embeds.append(e)
@@ -134,17 +172,20 @@ class Events(commands.Cog):
         content = " ".join(links)
         webhook = None
         if hasattr(msg.channel, "webhooks"):
-          webhook = (await utils.Webhook((commands.Context(message = msg, bot = self.bot, view = None))))
+          if msg.channel.permissions_for(msg.guild.me).manage_webhooks:
+            webhook = (await utils.Webhook((commands.Context(message = msg, bot = self.bot, view = None))))
         msgref = None
         if msg.reference:
           msgref = msg.reference.resolved
           if not hasattr(msgref, "author"):
             msgref = None
-        await msg.delete()
         msgsave = None
         if webhook:
+          await msg.delete()
           msgsave = await webhook.send(content = (f'╭━  [`@{msgref.author.name}`: ' + (msgref.content[0:49].replace("\n", " ")) + f']({msgref.jump_url})\n' if msgref else "") + content if content else None, embeds = embeds, username = msg.author.name, avatar_url = msg.author.avatar, allowed_mentions = discord.AllowedMentions.none(), wait = True)
         else:
+          if oneanon:
+            await msg.delete()
           msgsave = await msg.channel.send(content = (f'╭━  [`@{msgref.author.name}`: ' + (msgref.content[0:49].replace("\n", " ")) + f']({msgref.jump_url})\n' if msgref else "") + (f"`{msg.author.name}:` ") + content if content else None, embeds = embeds, allowed_mentions = discord.AllowedMentions.none())
         if str(msg.author.id) not in datasaver:
           datasaver[str(msg.author.id)] = set()
@@ -165,6 +206,5 @@ class Events(commands.Cog):
       e = discord.Embed(title = "Error", description = f"{str(error)[:31]} <t:{int(time.time() + error.retry_after)}:R>", color = random.randint(0, 16777215))
     await inter.send(embed = e, ephemeral = True)
     db["analytics"]["day"]["errored"] += 1
-
 def setup(bot):
   bot.add_cog(Events(bot))
