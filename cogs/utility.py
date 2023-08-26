@@ -4,17 +4,30 @@ import disnake as discord
 import random
 import os, sys
 import datetime, time
+from enum import Enum
 from disnake.ext import commands
 from utils import db, datasaver, defaultset, dividers
 
-botver = "4.7.1"
+botver = "4.8.0"
 pyver = ".".join(str(i) for i in list(sys.version_info)[0:3])
 dnver = ".".join(str(i) for i in list(discord.version_info)[0:3])
 
 settingkeys = {"msg_ignore_unknown": ("Ignore unknown message links", "Self explanatory"),
                "no_embed_on_mention": ("No embed on mention", "No 'Hello!' embed when you mention the bot"),
                "msg_ignore_all": ("Ignore messages", "Ignores all of your links and messages"),
-               "anon": ("Anonymous", "Your username and pfp wont be displayed in embedded messages")}
+               "anon": ("Anonymous", "Your username and pfp wont be displayed in embedded messages\n> Use `/settings anon` to set it up")}
+
+class Anon(str, Enum):
+  All_Servers = True
+  Off = False
+  Servers_you_arent_in = "servers you arent in"
+
+class Setting(str, Enum):
+  msg_ignore_unknown = "msg_ignore_unknown"
+  no_embed_on_mention = "no_embed_on_mention"
+  msg_ignore_all = "msg_ignore_all"
+
+escapesetkeys = ["anon"]
 
 async def suggest_setting(inter, input):
   if str(inter.author.id) not in db["settings"]:
@@ -23,8 +36,17 @@ async def suggest_setting(inter, input):
     for i in defaultset.keys():
       if i not in db["settings"][str(inter.author.id)]:
         db["settings"][str(inter.author.id)][i] = False
-  return [setting for setting in list(db['settings'][str(inter.author.id)].keys()) if input.lower() in setting.lower()][0:24]
+  return [setting for setting in list(db['settings'][str(inter.author.id)].keys()) if input.lower() in setting.lower() and setting.lower() not in escapesetkeys][0:24]
 
+def change_setting(inter, setting: str, value: str | bool):
+  if isinstance(value, str):
+    value = True if value.lower() == "true" else False if value.lower() == "false" else value
+  if value == db["settings"][str(inter.author.id)][setting]:
+    e = discord.Embed(title = "Error", description = "This setting is already set to this value", color = random.randint(0, 16777215))
+    return e
+  db["settings"][str(inter.author.id)][setting] = value
+  e = discord.Embed(title = "Success", description = "Setting updated!", color = random.randint(0, 16777215))
+  return e
 
 class Utility(commands.Cog):
   def __init__(self, bot):
@@ -84,16 +106,28 @@ class Utility(commands.Cog):
           db["settings"][str(inter.author.id)][i] = False
 
   @settings.sub_command()
+  async def anon(self, inter, value: Anon):
+    '''
+    Change your anonymous settings
+
+    Parameters
+    ----------
+    value: All servers, Off, Servers you arent in
+    '''
+    await inter.response.defer(ephemeral = True)
+    await inter.send(embed = change_setting(inter, "anon", value))
+
+  @settings.sub_command()
   async def info(self, inter):
     '''
     See all the settings
     '''
-    e = discord.Embed(title = "Settings", description = '\n\n'.join(f"{settingkeys[k][0]}: {'✅' if v else '❌'}\n> {settingkeys[k][1]}\n> Setting ID: `{k}`" for k, v in db["settings"][str(inter.author.id)].items()), color = random.randint(0, 16777215))
+    e = discord.Embed(title = "Settings", description = '\n\n'.join((f"{settingkeys[k][0]}: {'✅' if v and isinstance(v, bool) else '❌' if isinstance(v, bool) else f'`{v}`'}\n> {settingkeys[k][1]}" + (f"\n> Setting ID: `{k}`" if k not in escapesetkeys else "")) for k, v in db["settings"][str(inter.author.id)].items()), color = random.randint(0, 16777215))
     e.set_footer(text = f"Link Embedder", icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png")
     await inter.send(embed = e)
 
   @settings.sub_command()
-  async def change(self, inter, *, id: str = commands.Param(autocomplete = suggest_setting), value: bool):
+  async def change(self, inter, *, id: Setting, value: bool):
     '''
     Change your settings!
 
@@ -102,17 +136,8 @@ class Utility(commands.Cog):
     id: Setting id
     value: True or False
     '''
-    if id not in db["settings"][str(inter.author.id)]:
-      e = discord.Embed(title = "Error", description = "This setting does not exist\nMaybe you misspelled the setting id?", color = random.randint(0, 16777215))
-      await inter.send(embed = e, ephemeral = True)
-      return
-    if value == db["settings"][str(inter.author.id)][id]:
-      e = discord.Embed(title = "Error", description = "This setting is already set to this value", color = random.randint(0, 16777215))
-      await inter.send(embed = e, ephemeral = True)
-      return
-    db["settings"][str(inter.author.id)][id] = value
-    e = discord.Embed(title = "Success", description = "Setting updated!", color = random.randint(0, 16777215))
-    await inter.send(embed = e, ephemeral = True)
+    await inter.response.defer(ephemeral = True)
+    await inter.send(embed = change_setting(inter, id, value))
 
   @commands.slash_command()
   async def bot(self, inter):

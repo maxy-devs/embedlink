@@ -47,7 +47,7 @@ async def top_gg_updstats():
   except Exception as e:
     print(f"{e.__class__.__name__}: {e}")
 
-@tasks.loop(minutes = 10)
+@tasks.loop(minutes = 5)
 async def reset_anon():
   try:
     anonassign = {}

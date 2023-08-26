@@ -43,7 +43,7 @@ class Events(commands.Cog):
 
     #if "https://discord.com/channels/" in msg.content:
     if re.findall("https?://(ptb\.|canary\.)?discord(app)?\.com/channels/", msg.content):
-      links = msg.content.split(" ")
+      links = msg.content.replace("\n", " \n ").split(" ")
       embeds = []
       embedcount = 0
       embedi = -1
@@ -63,7 +63,7 @@ class Events(commands.Cog):
           except (discord.NotFound, AttributeError):
             getmsg = None
           if not getmsg:
-            if not db["settings"][str(msg.author.id)]["silent_errors"]:
+            if not db["settings"][str(msg.author.id)]["msg_ignore_unknown"]:
               embedcount += 1
               e = discord.Embed(description = f"Message not found\nLink: {links[n]}" + f"{' (ptb)' if 'ptb' in i else ''}{(' (canary)' if 'canary' in i else '')}{(' (discordapp)' if 'discordapp' in i else '')}", color = 0xED4245)
               e.set_footer(text = f"Link Embedder", icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png")
@@ -79,18 +79,23 @@ class Events(commands.Cog):
               if key not in db["settings"][str(getmsg.author.id)]:
                 db["settings"][str(getmsg.author.id)][key] = False
 
-          if db["settings"][str(getmsg.author.id)]["anon"]:
+          if db["settings"][str(getmsg.author.id)]["anon"] or getmsg.author.name in anonassign:
             if str(getmsg.author.id) not in anonassign:
               while True:
                 randomize = str(random.randint(1, len(self.bot.users)))
                 if randomize in anonassign.values():
                   continue
                 anonassign[str(getmsg.author.id)] = randomize
+                if not getmsg.author.name in anonassign:
+                  anonassign[getmsg.author.name] = randomize
                 break
             anon = True
             if not oneanon:
               oneanon = True
-
+            if db["settings"][str(getmsg.author.id)]["anon"] == "servers you arent in":
+              if msg.guild in getmsg.author.mutual_guilds:
+                anon = False
+                oneanon = False
           embedcount += 1
           embedi += 1
           links[n] = f"[Embed #{embedcount}]"
@@ -118,17 +123,23 @@ class Events(commands.Cog):
           if getmsg.reference:
             getmsgref = getmsg.reference.resolved
             if hasattr(getmsgref, "author"):
-              if db["settings"][str(getmsgref.author.id)]["anon"]:
+              if db["settings"][str(getmsgref.author.id)]["anon"] or getmsgref.author.name in anonassign:
                 if str(getmsgref.author.id) not in anonassign:
                   while True:
                     randomize = str(random.randint(1, len(self.bot.users)))
                     if randomize in anonassign.values():
                       continue
                     anonassign[str(getmsgref.author.id)] = randomize
+                    if not getmsgref.author.name in anonassign:
+                      anonassign[getmsgref.author.name] = randomize
                     break
                 refanon = True
                 if not oneanon:
                   oneanon = True
+                if db["settings"][str(getmsgref.author.id)]["anon"] == "servers you arent in":
+                  if msg.guild in getmsgref.author.mutual_guilds:
+                    anon = False
+                    oneanon = False
               if refanon:
                 embeds[embedi].set_author(name = (f"{str(getmsg.author.name)}" if not anon else f"User #{anonassign[str(getmsg.author.id)]}"), icon_url = getmsg.author.avatar if getmsg.author.avatar and not anon else f"https://cdn.discordapp.com/embed/avatars/{random.choice(list(range(0, 5)))}.png")
                 embeds[embedi].set_footer(icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png", text = "Link Embedder")
@@ -170,6 +181,7 @@ class Events(commands.Cog):
 
       if embeds:
         content = " ".join(links)
+        content = content.replace(" \n ", "\n")
         webhook = None
         if hasattr(msg.channel, "webhooks"):
           if msg.channel.permissions_for(msg.guild.me).manage_webhooks:
