@@ -93,7 +93,7 @@ class Events(commands.Cog):
             if not oneanon:
               oneanon = True
             if db["settings"][str(getmsg.author.id)]["anon"] == "servers you arent in":
-              if msg.guild in getmsg.author.mutual_guilds:
+              if msg.guild.get_member(getmsg.author.id):
                 anon = False
                 oneanon = False
           embedcount += 1
@@ -137,7 +137,7 @@ class Events(commands.Cog):
                 if not oneanon:
                   oneanon = True
                 if db["settings"][str(getmsgref.author.id)]["anon"] == "servers you arent in":
-                  if msg.guild in getmsgref.author.mutual_guilds:
+                  if msg.guild.get_member(getmsgref.author.id):
                     anon = False
                     oneanon = False
               if refanon:

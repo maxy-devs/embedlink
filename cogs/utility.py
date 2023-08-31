@@ -8,7 +8,7 @@ from enum import Enum
 from disnake.ext import commands
 from utils import db, datasaver, defaultset, dividers
 
-botver = "4.8.0"
+botver = "4.8.1"
 pyver = ".".join(str(i) for i in list(sys.version_info)[0:3])
 dnver = ".".join(str(i) for i in list(discord.version_info)[0:3])
 
