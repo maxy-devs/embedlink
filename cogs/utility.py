@@ -51,6 +51,17 @@ def change_setting(inter, setting: str, value: str | bool):
   e = discord.Embed(title = "Success", description = "Setting updated!", color = random.randint(0, 16777215))
   return e
 
+class EditModal(disnake.ui.Modal):
+  def __init__(self, placeholder: string = "Edit the content"):
+    super().__init__(title="Edit message", components = [
+      disnake.ui.TextInput(
+          label="Content",
+          placeholder=placeholder,
+          custom_id="content",
+          style=TextInputStyle.paragraph,
+          required=true,
+      ),
+    ])
 
 class Utility(commands.Cog):
   def __init__(self, bot):
@@ -93,23 +104,34 @@ class Utility(commands.Cog):
     '''
     await self.delete(inter, msg)
 
-  #TODO: add edit button and command
-
-  async def edit(self, inter: discord.Interaction, msg: discord.Message):
-    if str(inter.author.id) not in datasaver:
-      datasaver[str(inter.author.id)] = []
-    if "Delete message" not in db["analytics"]["day"]:
-      db["analytics"]["day"]["Delete message"] = 0
-    if str(msg.id) not in datasaver[str(inter.author.id)]:
-      e = discord.Embed(title = "Error", description = "You can not delete this message\nThere is a few reasons for that:\n\n1. User is not a webhook or a bot\n2. The message wasn't sent by a webhook\n3. Its not your webhook's message", color = random.randint(0, 16777215))
-      await inter.response.send_message(embed = e, ephemeral = True)
-      db["analytics"]["day"]["errored"] += 1
-      return
-    datasaver[str(inter.author.id)].discard(str(msg.id))
-    await msg.delete()
-    e = discord.Embed(title = "Success", description = "Message deleted!", color = random.randint(0, 16777215))
+  @self.check_message_perm
+  async def edit(self, inter: discord.Interaction, msg: discord.Message, content: str):
+    await msg.edit(content = content)
+    e = discord.Embed(title = "Success", description = "Message edited!", color = random.randint(0, 16777215))
     await inter.response.send_message(embed = e, ephemeral = True)
-    db["analytics"]["day"]["Delete message"] += 1
+    db["analytics"]["day"]["Edit message"] += 1
+
+  @commands.message_command(name = "Edit Message")
+  async def edit_msg(self, inter: discord.Interaction, msg: discord.Message):
+    await inter.response.send_modal(modal=EditModal(msg.content), custom_id=f"edit-{msg.id}")
+    modal_inter = await bot.wait_for(
+        "modal_submit",
+        check=lambda i: i.custom_id == "edit-{msg.id}",
+        timeout=300,
+    )
+    await self.edit(inter, msg, modal_inter.text_values["content"])
+
+  @commands.slash_command(name = "edit_msg")
+  async def edit_cmd(self, inter, msgid: discord.Message, content: str):
+    '''
+    Edit an embed with Message ID
+
+    Parameters
+    ----------
+    msgid: Message ID
+    content: New content
+    '''
+    await self.edit(inter, msg, content)
 
   @commands.slash_command()
   async def settings(self, inter):
