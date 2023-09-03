@@ -51,20 +51,27 @@ def change_setting(inter, setting: str, value: str | bool):
   e = discord.Embed(title = "Success", description = "Setting updated!", color = random.randint(0, 16777215))
   return e
 
+
 class Utility(commands.Cog):
   def __init__(self, bot):
     self.bot = bot
-
+  
+  async def check_message_perm(func):
+    async def wrapper(inter: discord.Interaction, msg: discord.Message):
+      if str(inter.author.id) not in datasaver:
+          datasaver[str(inter.author.id)] = []
+        if "Delete message" not in db["analytics"]["day"]:
+          db["analytics"]["day"]["Delete message"] = 0
+        if str(msg.id) not in datasaver[str(inter.author.id)]:
+          e = discord.Embed(title = "Error", description = "You can not delete this message\nThere is a few reasons for that:\n\n1. User is not a webhook or a bot\n2. The message wasn't sent by a webhook\n3. Its not your webhook's message", color = random.randint(0, 16777215))
+          await inter.response.send_message(embed = e, ephemeral = True)
+          db["analytics"]["day"]["errored"] += 1
+          return
+      return await func(inter, msg)
+    return wrapper
+  
+  @self.check_message_perm
   async def delete(self, inter: discord.Interaction, msg: discord.Message):
-    if str(inter.author.id) not in datasaver:
-      datasaver[str(inter.author.id)] = []
-    if "Delete message" not in db["analytics"]["day"]:
-      db["analytics"]["day"]["Delete message"] = 0
-    if str(msg.id) not in datasaver[str(inter.author.id)]:
-      e = discord.Embed(title = "Error", description = "You can not delete this message\nThere is a few reasons for that:\n\n1. User is not a webhook or a bot\n2. The message wasn't sent by a webhook\n3. Its not your webhook's message", color = random.randint(0, 16777215))
-      await inter.response.send_message(embed = e, ephemeral = True)
-      db["analytics"]["day"]["errored"] += 1
-      return
     datasaver[str(inter.author.id)].discard(str(msg.id))
     await msg.delete()
     e = discord.Embed(title = "Success", description = "Message deleted!", color = random.randint(0, 16777215))
@@ -87,6 +94,22 @@ class Utility(commands.Cog):
     await self.delete(inter, msg)
 
   #TODO: add edit button and command
+
+  async def edit(self, inter: discord.Interaction, msg: discord.Message):
+    if str(inter.author.id) not in datasaver:
+      datasaver[str(inter.author.id)] = []
+    if "Delete message" not in db["analytics"]["day"]:
+      db["analytics"]["day"]["Delete message"] = 0
+    if str(msg.id) not in datasaver[str(inter.author.id)]:
+      e = discord.Embed(title = "Error", description = "You can not delete this message\nThere is a few reasons for that:\n\n1. User is not a webhook or a bot\n2. The message wasn't sent by a webhook\n3. Its not your webhook's message", color = random.randint(0, 16777215))
+      await inter.response.send_message(embed = e, ephemeral = True)
+      db["analytics"]["day"]["errored"] += 1
+      return
+    datasaver[str(inter.author.id)].discard(str(msg.id))
+    await msg.delete()
+    e = discord.Embed(title = "Success", description = "Message deleted!", color = random.randint(0, 16777215))
+    await inter.response.send_message(embed = e, ephemeral = True)
+    db["analytics"]["day"]["Delete message"] += 1
 
   @commands.slash_command()
   async def settings(self, inter):
