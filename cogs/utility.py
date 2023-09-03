@@ -8,14 +8,16 @@ from enum import Enum
 from disnake.ext import commands
 from utils import db, datasaver, defaultset, dividers
 
-botver = "4.8.1"
+botver = "4.9.0"
 pyver = ".".join(str(i) for i in list(sys.version_info)[0:3])
 dnver = ".".join(str(i) for i in list(discord.version_info)[0:3])
 
 settingkeys = {"msg_ignore_unknown": ("Ignore unknown message links", "Self explanatory"),
                "no_embed_on_mention": ("No embed on mention", "No 'Hello!' embed when you mention the bot"),
                "msg_ignore_all": ("Ignore messages", "Ignores all of your links and messages"),
-               "anon": ("Anonymous", "Your username and pfp wont be displayed in embedded messages\n> Use `/settings anon` to set it up")}
+               "anon": ("Anonymous", "Your username and pfp wont be displayed in embedded messages\n> Use `/settings anon` to set it up"),
+               "send_as_bot": ("Send embeds as bot", "Sends your message and embeds as bot instead of webhook")
+               }
 
 class Anon(str, Enum):
   All_Servers = True
@@ -26,6 +28,7 @@ class Setting(str, Enum):
   msg_ignore_unknown = "msg_ignore_unknown"
   no_embed_on_mention = "no_embed_on_mention"
   msg_ignore_all = "msg_ignore_all"
+  send_as_bot = "send_as_bot"
 
 escapesetkeys = ["anon"]
 

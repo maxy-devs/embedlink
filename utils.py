@@ -213,7 +213,7 @@ def dividers(array: list, divider: str = " | "):
   return divider.join(ft) if divider else ""
 
 datasaver = {}
-defaultset = {"msg_ignore_unknown": False, "msg_ignore_all": False, "no_embed_on_mention": False, "anon": False}
+defaultset = {"msg_ignore_unknown": False, "msg_ignore_all": False, "no_embed_on_mention": False, "anon": False, "send_as_bot": False}
 anonassign = {}
 
 
