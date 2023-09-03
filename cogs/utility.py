@@ -55,7 +55,6 @@ class Utility(commands.Cog):
   def __init__(self, bot):
     self.bot = bot
 
-  @commands.message_command(name = "Delete Message")
   async def delete(self, inter: discord.Interaction, msg: discord.Message):
     if str(inter.author.id) not in datasaver:
       datasaver[str(inter.author.id)] = []
@@ -72,8 +71,12 @@ class Utility(commands.Cog):
     await inter.response.send_message(embed = e, ephemeral = True)
     db["analytics"]["day"]["Delete message"] += 1
 
-  @commands.slash_command()
-  async def delete_msg(self, inter, msgid: discord.Message):
+  @commands.message_command(name = "Delete Message")
+  async def delete_msg(self, inter: discord.Interaction, msg: discord.Message):
+    await self.delete(inter, msg)
+
+  @commands.slash_command(name = "delete_msg")
+  async def delete_cmd(self, inter, msgid: discord.Message):
     '''
     Delete an embed with Message ID
 
@@ -81,21 +84,7 @@ class Utility(commands.Cog):
     ----------
     msgid: Message ID
     '''
-    if str(inter.author.id) not in datasaver:
-      datasaver[str(inter.author.id)] = []
-    if "Delete message" not in db["analytics"]["day"]:
-      db["analytics"]["day"]["Delete message"] = 0
-    msg = await inter.bot.get_channel(msgid.channel.id).fetch_message(msgid.id)
-    if str(msg.id) not in datasaver[str(inter.author.id)]:
-      e = discord.Embed(title = "Error", description = "You can not delete this message\nThere is a few reasons for that:\n\n1. User is not a webhook or a bot\n2. The message wasn't sent by a webhook/bot\n3. Its not your webhook/bot's message", color = random.randint(0, 16777215))
-      await inter.send(embed = e, ephemeral = True)
-      db["analytics"]["day"]["errored"] += 1
-      return
-    datasaver[str(inter.author.id)].discard(str(msg.id))
-    await msg.delete()
-    e = discord.Embed(title = "Success", description = "Message deleted!", color = random.randint(0, 16777215))
-    await inter.send(embed = e, ephemeral = True)
-    db["analytics"]["day"]["Delete message"] += 1
+    await self.delete(inter, msg)
 
   #TODO: add edit button and command
 
