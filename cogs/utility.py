@@ -8,7 +8,7 @@ from enum import Enum
 from disnake.ext import commands
 from utils import db, datasaver, defaultset, dividers
 
-botver = "4.9.0"
+botver = "4.9.1"
 pyver = ".".join(str(i) for i in list(sys.version_info)[0:3])
 dnver = ".".join(str(i) for i in list(discord.version_info)[0:3])
 
@@ -17,7 +17,12 @@ settingkeys = {"msg_ignore_unknown": ("Ignore unknown message links", "Self expl
                "msg_ignore_all": ("Ignore messages", "Ignores all of your links and messages"),
                "anon": ("Anonymous", "Your username and pfp wont be displayed in embedded messages\n> Use `/settings anon` to set it up"),
                "send_as_bot": ("Send embeds as bot", "Sends your message and embeds as bot instead of webhook")
-               }
+              }
+
+e_ = {"pos": "<:checkmark:1150173739896541185>",
+      "mid": "<:mid:1150173743260385290>",
+      "neg": "<:x_:1150173745311391836>"
+     }
 
 class Anon(str, Enum):
   All_Servers = True
@@ -125,7 +130,7 @@ class Utility(commands.Cog):
     '''
     See all the settings
     '''
-    e = discord.Embed(title = "Settings", description = '\n\n'.join((f"{settingkeys[k][0]}: {'✅' if v and isinstance(v, bool) else '❌' if isinstance(v, bool) else f'`{v}`'}\n> {settingkeys[k][1]}" + (f"\n> Setting ID: `{k}`" if k not in escapesetkeys else "")) for k, v in db["settings"][str(inter.author.id)].items()), color = random.randint(0, 16777215))
+    e = discord.Embed(title = "Settings", description = '\n\n'.join((f"{settingkeys[k][0]}: {e_['pos'] if v and isinstance(v, bool) else e_['neg'] if isinstance(v, bool) else (e_['mid'] + f' `{v}`')}\n> {settingkeys[k][1]}" + (f"\n> Setting ID: `{k}`" if k not in escapesetkeys else "")) for k, v in db["settings"][str(inter.author.id)].items()), color = random.randint(0, 16777215))
     e.set_footer(text = f"Link Embedder", icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png")
     await inter.send(embed = e)
 
@@ -257,6 +262,7 @@ class Utility(commands.Cog):
         datasaver[str(inter.author.id)] = set()
       datasaver[str(inter.author.id)].add(str(msgsave.id))
       db["analytics"]["day"]["total"] += 1
+      db["analytics"]["day"]["/quote"] += 1
       return
 
   @commands.slash_command()

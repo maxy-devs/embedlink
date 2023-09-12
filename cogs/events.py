@@ -63,6 +63,7 @@ class Events(commands.Cog):
       embedi = -1
       getmsg = None
       oneanon = None
+      onensfw = None
       for n, i in enumerate(links):
         ids = re.findall("[0-9]{10,}", i.strip())
         anon = False
@@ -79,11 +80,21 @@ class Events(commands.Cog):
           if not getmsg:
             if not db["settings"][str(msg.author.id)]["msg_ignore_unknown"]:
               embedcount += 1
-              e = discord.Embed(description = f"Message not found\nLink: {links[n]}" + f"{' (ptb)' if 'ptb' in i else ''}{(' (canary)' if 'canary' in i else '')}{(' (discordapp)' if 'discordapp' in i else '')}", color = 0xED4245)
+              e = discord.Embed(title = "Error: 404 Not Found", description = f"Message not found\nLink: {links[n]}" + f"{' (ptb)' if 'ptb' in i else ''}{(' (canary)' if 'canary' in i else '')}{(' (discordapp)' if 'discordapp' in i else '')}", color = 0xED4245)
               e.set_footer(text = f"Link Embedder", icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png")
               links[n] = f"[Embed #{embedcount}]"
               embeds.append(e)
               db["analytics"]["day"]["errored"] += 1
+            continue
+
+          if getmsg.channel.is_nsfw() and not msg.channel.is_nsfw():
+            onensfw = True
+            embedcount += 1
+            e = discord.Embed(title = "Error: NSFW Channel", description = f"Cannot fetch contents from **NSFW** channels to **NON-NSFW** channels\n||Link: {links[n]}" + f"{' (ptb)' if 'ptb' in i else ''}{(' (canary)' if 'canary' in i else '')}{(' (discordapp)' if 'discordapp' in i else '')}||", color = 0xED4245)
+            e.set_footer(text = f"Link Embedder", icon_url = "https://cdn.discordapp.com/attachments/843562496543817781/1134933097314537632/8rGXVQ2FXq9W.png")
+            links[n] = f"[Embed #{embedcount}]"
+            embeds.append(e)
+            db["analytics"]["day"]["errored"] += 1
             continue
 
           if str(getmsg.author.id) not in db["settings"]:
@@ -174,6 +185,7 @@ class Events(commands.Cog):
               embedcount += 1
           if "message embeds" not in db["analytics"]["day"]:
             db["analytics"]["day"]["message embeds"] = 0
+          db["analytics"]["day"]["total"] += 1
           db["analytics"]["day"]["message embeds"] += 1
 
         elif len(ids) == 2:
@@ -193,6 +205,7 @@ class Events(commands.Cog):
           embeds.append(e)
           if "channel embeds" not in db["analytics"]["day"]:
             db["analytics"]["day"]["channel embeds"] = 0
+          db["analytics"]["day"]["total"] += 1
           db["analytics"]["day"]["channel embeds"] += 1
 
       if len(embeds) > 10:
@@ -222,9 +235,9 @@ class Events(commands.Cog):
           await msg.delete()
           msgsave = await webhook.send(content = (f'╭━  [`@{msgref.author.name}`: ' + (msgref.content[0:49].replace("\n", " ")) + f']({msgref.jump_url})\n' if msgref else "") + content if content else None, embeds = embeds, username = msg.author.name, avatar_url = msg.author.avatar, allowed_mentions = discord.AllowedMentions.none(), wait = True)
         else:
-          if oneanon:
+          if oneanon or onensfw:
             await msg.delete()
-          msgsave = await msg.channel.send(content = ((f'╭━  [`@{msgref.author.name}`: ' + (msgref.content[0:49].replace("\n", " ")) + f']({msgref.jump_url})\n' if msgref else "") + (f"`{msg.author.name}:` ") + content if content else None) if oneanon else None, embeds = embeds, allowed_mentions = discord.AllowedMentions.none())
+          msgsave = await msg.channel.send(content = ((f'╭━  [`@{msgref.author.name}`: ' + (msgref.content[0:49].replace("\n", " ")) + f']({msgref.jump_url})\n' if msgref else "") + (f"`{msg.author.name}:` ") + content if content else None) if oneanon or onensfw else None, embeds = embeds, allowed_mentions = discord.AllowedMentions.none())
         if str(msg.author.id) not in datasaver:
           datasaver[str(msg.author.id)] = set()
         datasaver[str(msg.author.id)].add(str(msgsave.id))
